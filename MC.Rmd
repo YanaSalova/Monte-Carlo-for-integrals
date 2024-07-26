@@ -1,0 +1,178 @@
+---
+title: "Monte Carlo"
+output: html_document
+date: "2024-03-16"
+---
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+
+
+```{r}
+f <- function(x) exp(-cos(x + tan(x)))
+
+a <- 0
+b <- pi
+N <- 1000 # Начальное количество интервалов
+
+simpson_integral <- function(f, a, b, N) {
+  if (N %% 2 == 1) N <- N + 1 
+  h <- (b - a) / N
+  x <- seq(a, b, length.out = N + 1)
+  y <- f(x)
+  I <- (h/3) * (y[1] + y[N+1] + 2 * sum(y[seq(3, N, by = 2)]) + 4 * sum(y[seq(2, N, by = 2)]))
+  return(I)
+}
+
+# Проверка сходимости
+for (i in 1:5) 
+  {
+  I <- simpson_integral(f, a, b, N)
+  cat("N =", N, "; Integral =", I, "\n")
+  N <- 2 * N # Удвоение количества интервалов для уменьшения шага и увеличения точности
+}
+
+integrate(f, 0, pi)
+```
+
+
+
+```{r}
+# Функция под интегралом
+f <- function(x) 
+{
+  ifelse(abs(x - pi/2) < 1e-5, NA, exp(-cos(x + tan(x))))
+}
+
+
+monte_carlo_integral <- function(f, a, b, N, density_fn, ...) 
+{
+  # Генерация случайных точек 
+  random_points <- density_fn(N, ...)
+  
+  # Вычисление значения функции для каждой точки
+  values <- f(random_points)
+  
+  # Исключение неопределённых значений
+  values <- values[!is.na(values)]
+  
+  # Вычисление среднего значения функции
+  mean_value <- mean(values)
+  
+  # Вычисление приближенного значения интеграла
+  approx_integral <- mean_value * (b - a)
+  
+  # Возврат результата
+  return(approx_integral)
+}
+
+
+a <- 0
+b <- pi
+N <- 100000
+uniform_density <- function(N, a, b) runif(N, a, b)
+result_uniform <- monte_carlo_integral(f, a, b, N, uniform_density, a, b)
+cat("Результат с равномерной плотностью:", result_uniform, "\n")
+
+```
+
+
+```{r}
+# Функция под интегралом
+f <- function(x) 
+{
+  ifelse(abs(x - pi/2) < 1e-5, NA, exp(-cos(x + tan(x))))
+}
+# Пределы интегрирования
+a <- 0
+b <- pi
+
+# Порядок сходимости
+orders <- 2^(3:25) # Серия степеней двойки для N
+errors <- numeric(length(orders))
+
+# Предположим, что у нас есть точное значение интеграла 
+true_value <- 4
+
+# Вычисление интеграла для различных N и запись ошибок
+for (i in seq_along(orders)) 
+{
+  N <- orders[i]
+  random_points <- runif(N, a, b)
+  approx_integral <- mean(f(random_points), na.rm = TRUE) * (b - a)
+  errors[i] <- abs(approx_integral - true_value)
+}
+
+# Построение графика ошибки от N в логарифмическом масштабе
+plot(log(orders), 
+     log(errors), 
+     type = 'b', 
+     pch = 19, 
+     col = 'blue', 
+     xlab = 'Log(N)', 
+     ylab = 'Log(Error)',
+     main = 'Порядок сходимости Монте-Карло')
+abline(lm(log(errors) ~ log(orders)), col = 'red') # Линия тренда
+
+```
+
+
+```{r}
+
+
+monte_carlo_integral <- function(f, a, b, N, density_fn, ...) 
+{
+  random_points <- density_fn(N, ...)
+  values <- f(random_points)
+  valid_values <- values[!is.na(values)]
+  
+  if (length(valid_values) == 0) 
+  {
+    return(list(value = NA, variance = NA))
+  } 
+  else
+  {
+    approx_integral <- mean(valid_values) * (b - a)
+    variance_of_estimate <- var(valid_values) / N * (b - a)^2
+    
+    return(list(value = approx_integral, variance = variance_of_estimate))
+  }
+}
+
+N = 1000000
+uniform_density <- function(N, a, b) {
+  runif(N, a, b)
+}
+result_uniform <- monte_carlo_integral(f, a, b, N, uniform_density, a, b)
+
+
+normal_density <- function(N, a, b) {
+  mu <- (a + b) / 2
+  sigma <- (b - a) / 6
+  rnorm(N, mean = mu, sd = sigma)
+}
+result_normal <- monte_carlo_integral(f, a, b, N, normal_density, a, b)
+
+
+exp_density <- function(N, rate) 
+{
+  rexp(N, rate)
+}
+rate <- 1 / (b - a) 
+result_exp <- monte_carlo_integral(f, a, b, N, exp_density, rate)
+
+
+alpha <- 2
+beta <- 5
+result_beta <- monte_carlo_integral(f, a, b, N, beta_density_scaled, alpha, beta, a, b)
+
+
+# Вывод результатов
+cat("Равномерное распределение: Интеграл =", result_uniform$value, ", Дисперсия =", result_uniform$variance, "\n")
+cat("Нормальное распредление: Интеграл =", result_normal$value, ", Дисперсия =", result_normal$variance, "\n")
+cat("Экспоненциальное распредление: Интеграл =", result_exp$value, ", Дисперсия =", result_exp$variance, "\n")
+cat("Распределение Бета: Интеграл =", result_beta$value, ", Дисперсия =", result_beta$variance, "\n")
+
+```
+
